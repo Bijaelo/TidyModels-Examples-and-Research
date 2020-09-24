@@ -22,7 +22,9 @@ load_p('ggthemes')
 load_p('patchwork')
 ## Import the dataset
 data(ames, package = 'modeldata')
+ames <- ames %>% mutate(Sale_Price = log10(Sale_Price))
 ames
+
 
 ## Setup variables
 graphics_dir <- 'chapter-6-graphics'
@@ -48,13 +50,13 @@ ames_subset <- ames_split %>%
 simple_ames <-
   recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type,
          data = ames_subset)  %>%
-  step_log(Gr_Liv_Area, base = 10) %>%
+  step_log(Gr_Liv_Area, Sale_Price, base = 10) %>%
   step_dummy(all_nominal())
 
 simple_ames_no_formula <-
   recipe(ames_subset,
          roles = c(rep('predictor', 4), 'outcome')) %>%
-  step_log(Gr_Liv_Area, base = 10) %>%
+  step_log(Gr_Liv_Area, Sale_Price, base = 10) %>%
   step_dummy(all_nominal())
 
 ## Are they identical?
@@ -111,9 +113,78 @@ ames_train %>%
   ggplot(aes(y = Neighborhood)) +
   geom_bar() +
   labs(y = NULL) +
-  theme_pander() %>%
-  show()
+  theme_pander()
 ggsave(file.path(graphics_dir, 'Neighborhood.png'),
        width = 10, height = 8)
+## Using step_other with threshold = 0.01 will ensure the smallest category is at least 1 % of the dataset
+
+simple_ames <-
+  recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type,
+         data = ames_subset)  %>%
+  step_log(Gr_Liv_Area, base = 10) %>%
+  step_other(Neighborhood, threshold = 0.01) %>%
+  prep()
+
+### We can see that "other" has devoured many smaller groups.
+simple_ames %>% juice() %>%
+  ggplot(aes(y = Neighborhood)) +
+  geom_bar() +
+  labs(y = NULL) +
+  theme_pander()
+ggsave(file.path(graphics_dir, 'Neighborhood_grouped.png'),
+       width = 10, height = 8)
+
+## For ordered terms we can choose how we want to encode our dummy variables using specific steps.
+## Eg.
+mtcars %>%
+  recipe( mpg ~ hp + cyl ) %>%
+  step_integer(cyl) %>%
+  step_num2factor(cyl, ordered = TRUE, levels = c(letters[1:3])) %>%
+  prep() %>%
+  juice()
+## Note that there is a need for step_integer, although I've opened an issue at
+## https://github.com/tidymodels/recipes/issues/575
+
+# 6.4: Interaction terms
+
+## As known by the most stupid beings, sometimes an effect can be different in different groupings or at different levels.
+## For the ames dataset we have that for sale price given different living area across building type.
+ggplot(ames_train, aes(x = Gr_Liv_Area, y = 10^Sale_Price)) +
+  geom_point(alpha = .2) +
+  facet_wrap(~ Bldg_Type) +
+  geom_smooth(method = lm, formula = y ~ x, se = FALSE, col = "red") +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(x = "General Living Area", y = "Sale Price (USD)") +
+  theme_pander()
+ggsave(file.path(graphics_dir, 'interaction_graphics.png'),
+       width = 12, height = 8)
+## We can use step_interact to add standard interactions.
+## By default it will throw an error if a variable is not dummified. This is very unlike base R (I don't know if I like that yet.)
+ames_train %>%
+  recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type) %>%
+  step_log(Gr_Liv_Area, base = 10) %>%
+  step_other(Neighborhood, threshold = 0.01) %>%
+  step_dummy(all_nominal()) %>%
+  step_interact( ~ Gr_Liv_Area:starts_with("Bldg_Type_")) %>%
+  prep() %>%
+  juice() %>%
+  names()
+## Pretrained recipe
+prep_ames %>%
+  step_interact( ~ Gr_Liv_Area:starts_with("Bldg_Type_")) %>%
+  prep() %>%
+  juice() %>%
+  names()
+
+
+prep_ames %>%
+  step_interact( ~ Gr_Liv_Area:starts_with("Bldg_Type_"), sep = ':') %>%
+  prep() %>%
+  juice() %>%
+  names()
+
+
+# 6.5: Skipping steps for new data
 
 
