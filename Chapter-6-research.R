@@ -17,11 +17,15 @@ load_p('dplyr')
 load_p('purrr')
 load_p('tidyr')
 load_p('broom')
-
+load_p('ggplot2')
+load_p('ggthemes')
+load_p('patchwork')
 ## Import the dataset
 data(ames, package = 'modeldata')
 ames
 
+## Setup variables
+graphics_dir <- 'chapter-6-graphics'
 
 ## 6.1
 ### Focus:
@@ -100,3 +104,16 @@ microbenchmark(bake = prep_ames %>% bake(new_data = ames_split %>% assessment(),
 ### It does seem to be about 10 % faster. This might just be because of the compiled function however.
 
 # 6.3: Encoding qualitative data in a numeric format.
+
+## For handling very small groups in nominal values we can use step_other while step_novel can be used for "expected future level"
+## Neighborhood has an example here
+ames_train %>%
+  ggplot(aes(y = Neighborhood)) +
+  geom_bar() +
+  labs(y = NULL) +
+  theme_pander() %>%
+  show()
+ggsave(file.path(graphics_dir, 'Neighborhood.png'),
+       width = 10, height = 8)
+
+
