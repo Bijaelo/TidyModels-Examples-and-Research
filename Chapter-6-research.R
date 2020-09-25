@@ -225,7 +225,7 @@ ames_filter %>% bake(new_data = ames_test) %>% summary()
 
 # 6.6: Other examples of recipe steps
 
-## Sometimes we
+## Often when visualizing data we use a smoother to visualize the pattern of our data.
 plot_smoother <- function(deg_free){
   ggplot(ames_train, aes(x = Latitude, y = Sale_Price)) +
     geom_point(alpha = 0.1) +
@@ -241,5 +241,86 @@ plot_smoother <- function(deg_free){
    (plot_smoother(20) + plot_smoother(100))
 ggsave(file.path(graphics_dir, 'smoother.png'))
 
+## We can add this smoother to our data using step_ns
+## Several other steps apparently exist? They are not mentioned, but i assume step_mutate
+
+recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type + Latitude,
+       data = ames_train) %>%
+  step_log(Sale_Price, Gr_Liv_Area, base = 10) %>%
+  step_other(Neighborhood, threshold = 0.01) %>%
+  step_dummy(all_nominal()) %>%
+  step_interact( ~ Gr_Liv_Area:starts_with("Bldg_Type_") ) %>%
+  step_ns(Latitude, deg_free = 20) %>%
+  prep() %>%
+  juice() %>%
+  select(starts_with('Latitude_')) %>%
+  dim()
+### Note that for deg_free 20 we of course have 20 polynomials across the data.
+
+#- Feature extraction (subsection)
+## We can similarly use step_pca for extracting uncorrelated features.
+## It is very important to note that step_pca does NOT scale/center your variables
+## So one has to add step_normalize beforehand.
+recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type + Latitude,
+       data = ames_train) %>%
+  step_log(Sale_Price, Gr_Liv_Area, base = 10) %>%
+  step_other(Neighborhood, threshold = 0.01) %>%
+  step_dummy(all_nominal()) %>%
+  step_normalize(matches('(SF$)|(GR_Liv)')) %>%
+  step_pca(matches('(SF$)|(GR_Liv)')) %>%
+  prep() %>%
+  juice() %>%
+  select(starts_with('PC'))
 
 
+## One could also use "ICA", "KPCA", "NNMF", "MDS" or "UMAP"
+?step_kpca
+
+#- Row sampling steps (subsection)
+## Both the recipes and themis package has some step for sampling data
+## The themis package has most of the steps such as down- and upsampling, smote and so forth.
+
+### There is no missing data in the ames dataset, so an example could be with the okc data
+### See help(okc)
+data(okc, package = 'modeldata')
+summary(okc)
+
+dim(okc) # Note 59855 by 6
+okc %>% recipe(~ . ) %>%
+  step_downsample(diet)  %>%
+  prep() %>%
+  juice() # Note 209 by 6 due to downsampling.
+
+#### Downsmapling:
+okc %>% select(diet) %>% table(useNA = 'always') # smallest group = 11, largest = 16562, 24360 NA.
+okc %>% recipe(~ . ) %>%
+  step_downsample(diet)  %>%
+  prep() %>%
+  juice() %>%
+  select(diet) %>%
+  table(useNA = 'always') # All groups = 11. Even NA
+#### Upsampling
+okc %>% recipe(~ . ) %>%
+  step_upsample(diet)  %>%
+  prep() %>%
+  juice() %>%
+  select(diet) %>%
+  table(useNA = 'always') # All groups = 16562 but not NA (important difference from downsampling)
+
+
+#- General transformation (subsection)
+## Like dplyr we can use step_mutate and step_mutate_at to do transformations to the dataset
+## Wonder if "across" works like dplyr too
+
+# Using step_mutate instead of step_log (just.. for some example)
+identical(recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type + Latitude,
+                 data = ames_train) %>%
+            step_log(Sale_Price, Gr_Liv_Area, base = 10) %>%
+            prep() %>%
+            juice(),
+          recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type + Latitude,
+                 data = ames_train) %>%
+            step_mutate(Sale_Price = log(Sale_Price, base = 10), Gr_Liv_Area = log(Gr_Liv_Area, base = 10)) %>%
+            prep() %>%
+            juice()
+)
