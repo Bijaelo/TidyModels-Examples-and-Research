@@ -349,7 +349,36 @@ okc_rec <- recipe(~  essay0 + essay1, data = okc_text) %>%
 ## Eg a step may need some information at the step phase and stores this info, while the `prep` step will use this information, unaltered by other steps
 ## Most steps however do "nothing" in the step phase and simply creates a specification (eg a recipe step) that should be performed by prep.
 ## that is why "step_*"s are fast while "prep"  is slow.
+## Obviously in proper implementations only "predict"-type things are performed by "bake" and "juice".
 
-# 6.8
+# 6.8: Using a recipe with traditional modeling functions
+## This section shows how we can use the final data in a standard modelling reference
+ames_lm_rec <- recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type +
+                            Latitude + Longitude, data = ames_train) %>%
+  step_log(Sale_Price, Gr_Liv_Area, base = 10) %>%
+  step_other(Neighborhood, threshold = 0.01) %>%
+  step_dummy(all_nominal()) %>%
+  step_interact( ~ Gr_Liv_Area:starts_with("Bldg_Type_") ) %>%
+  step_ns(Latitude, Longitude, deg_free = 20) %>%
+  prep()
+ames_train_prepped <- ames_lm_rec %>% juice()
+ames_test_prepped <- ames_lm_rec %>% bake(new_data = ames_test)
 
+lm_ames_base <- lm(Sale_Price ~ ., ames_train_prepped)
+glance(lm_ames_base)
+tidy(lm_ames_base)
 
+predict(lm_ames_base, data = ames_test_prepped)
+
+# 6.9: Tidy af recipe
+## Similar to brooming a fit we can use broom to get a tidy look into our recipe
+tidy(ames_lm_rec)
+## the id can be specified using `id` in the specific steps, and using the id we can see more information about the specific step
+tidy(ames_lm_rec, id = 'log_fXqAl')
+## We can also use the number of the step for more information
+tidy(ames_lm_rec, number = 4)
+## the output depends on the specific step one looks into, so it is always better to use "id" instead of number for further processing,
+## in order to remove errors due to changed order or added steps.
+
+# 6.10: Column roles
+##
