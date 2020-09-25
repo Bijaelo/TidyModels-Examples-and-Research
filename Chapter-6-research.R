@@ -407,3 +407,5 @@ ames_rec <- recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_T
 ## 3: Create prep.---- which will take care of the actual process.
 ## An example will be added at some point if i remember. Otherwise see https://www.tidymodels.org/learn/develop/recipes/
 
+
+

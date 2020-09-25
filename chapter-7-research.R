@@ -1,0 +1,108 @@
+
+###
+## Chapter 7
+###
+
+# Setup
+## Load necessary packages
+
+load_p <- function(x, character.only = TRUE, ...){
+  if(!require(x, character.only = character.only, ...))
+    install.packages(x, ...)
+  library(x, character.only = character.only, ...)
+}
+load_p('tidymodels')
+load_p('recipes')
+load_p('modeldata') # loaded by tidymodels
+load_p('dplyr')
+load_p('purrr')
+load_p('tidyr')
+load_p('themis')
+load_p('broom')
+load_p('ggplot2')
+load_p('ggthemes')
+load_p('patchwork')
+load_p('parsnip')
+load_p('ranger')
+
+## Import dataset
+data('ames', package = 'modeldata')
+set.seed(123)
+ames_split <- initial_split(ames, 0.8)
+ames_train <- analysis(ames_split)
+ames_test <- assessment(ames_split)
+ames_rec <- recipe(Sale_Price ~ ., ames_train) %>%
+  step_log(Sale_Price, Gr_Liv_Area, base = 10) %>%
+  prep()
+ames_train_prep <- juice(ames_rec)
+ames_test_prep <- bake(ames_rec, new_data = ames_test)
+
+# 7.1: Create a model
+## Models in R are usually fit using a formula interface which creates a model matrix and response vector
+## however some interfaces only accept the matrix and response vector such as glmnet, and this is difference can make it frustrating to work with.
+## The parsnip package provides a unified interface which is based upon a simple idea
+
+## 1. One should specify the type of model, based on its mathematical structure
+## 2. One then specifies the engine, or software, that should be used for the model
+## 3. One should specify (where necessary) the outcome, or mode, of the model.
+
+## For example
+### Linear model using stats::lm
+linear_reg() %>% set_engine('lm')
+### linear model using regularized lm in glnet::glmnet
+linear_reg() %>% set_engine('glmnet')
+### Linear model using regularized bayesian engine in rstan
+linear_reg() %>% set_engine('stan')
+
+## The translate function can be used to print a visualization of the call performed.
+linear_reg() %>% set_engine('stan') %>% translate()
+
+## We can fit using either fit(...) (for formulas) or fit_xy(x, y, ...) for matrix and vector pairs.
+lm_m <- linear_reg() %>%
+  set_engine('lm')
+lm_f_fit <- lm_m %>%
+  fit(Sale_Price ~ Longitude + Latitude, data = ames_train)
+lm_xy_fit <- lm_m %>%
+  fit_xy(x = ames_train %>% select(Longitude, Latitude),
+         y = ames_train %>% pull(Sale_Price))
+
+### Note: The data here is scaled, the datai nthe book is.. not?
+lm_f_fit
+lm_xy_fit
+
+
+## Arguments are standardized across packages
+## For example, for tree models, mtry, trees and min_n are used for sampled predictors, number of trees and minimum points for the splitting criterium
+
+rand_forest(trees = 1e4, min_n = 5) %>%
+  set_engine('ranger') %>%
+  set_mode('regression') %>%
+  translate()
+
+## As we can see there are multiple arguments added by default
+## But sometimes we might want to change these
+## For example we might want to change num.threads from 1 to 2
+## This can be done in `set_engine`
+rand_forest(trees = 1e4, min_n = 5) %>%
+  set_engine('ranger', num.threads = 2) %>%
+  set_mode('regression') %>%
+  translate()
+
+
+# 7.2: Use the model results
+
+## We can extract the specific parts of the fit using either standard S3 extractors ($, [[]], etc)
+lm_f_fit %>% pluck('fit') %>% anova()
+lm_f_fit$fit
+lm_f_fit %>% pluck('spec')
+lm_f_fit[['spec']]
+
+
+## The broom::tidy function can be used on the parsnip object rather than the fit itself
+tidy(lm_f_fit)
+
+# 7.3: Make predictions
+
+
+
+
