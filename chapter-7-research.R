@@ -61,10 +61,10 @@ linear_reg() %>% set_engine('stan') %>% translate()
 lm_m <- linear_reg() %>%
   set_engine('lm')
 lm_f_fit <- lm_m %>%
-  fit(Sale_Price ~ Longitude + Latitude, data = ames_train)
+  fit(Sale_Price ~ Longitude + Latitude, data = ames_train_prep)
 lm_xy_fit <- lm_m %>%
-  fit_xy(x = ames_train %>% select(Longitude, Latitude),
-         y = ames_train %>% pull(Sale_Price))
+  fit_xy(x = ames_train_prep %>% select(Longitude, Latitude),
+         y = ames_train_prep %>% pull(Sale_Price))
 
 ### Note: The data here is scaled, the datai nthe book is.. not?
 lm_f_fit
@@ -103,6 +103,39 @@ tidy(lm_f_fit)
 
 # 7.3: Make predictions
 
+## The parsnip package also allows one to make predictions directly from the parsnip object
+## There is a few difference however.
 
+## 1: The result is always a tibble
+## 2: the result always has predictable column names (starting with a period ".")
+## 3: There are always rows equal to the number of predictors.
 
+## "3:" is especially useful. This mean that even if we have rows with missing values, predict will not remove these automatically.
 
+## Note these differ slighlty due to choice of random number for seed.
+ames_test_prep %>%
+  slice(1:5) %>%
+  predict(lm_f_fit, new_data = .)
+## Also note that the order is always consistent.
+
+## This can make it very simple to combine the results into existing data
+
+ames_test_prep %>%
+  select(Sale_Price) %>%
+  bind_cols(predict(lm_f_fit, new_data = ames_test_prep)) %>%
+  bind_cols(predict(lm_f_fit, new_data = ames_test_prep, type = 'pred_int')) %>%
+  bind_cols(predict(lm_f_fit, new_data = ames_test_prep, type = 'conf_int'))
+
+## These rules all make it simple to change between models and engines.
+## We could for example get predictions using random forest:
+lm_r_fit <- rand_forest(trees = 1000, min_n = 5) %>%
+  set_engine('ranger') %>%
+  set_mode('regression') %>%
+  fit(Sale_Price ~ ., data = ames_train_prep)
+ames_test_prep %>%
+  select(Sale_Price) %>%
+  bind_cols(predict(lm_r_fit, new_data = ames_test_prep))
+
+### Note that there is no interval for this prediction method.
+
+# 7.4: Parsnip-adjacent packages
