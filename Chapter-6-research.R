@@ -399,4 +399,11 @@ ames_rec <- recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_T
 ## Most of the role system on a daily basis is useful for removing variables from certain steps that affect all predictors,
 ## or for making certain steps have increased readability.
 
+# 6.12: Extending recipes (Not included in the book, myself making)
+## One can extend the recipes package by creating their own step.
+## This is done in 3 steps:
+## 1: Create step.----
+## 2: create step.----_new that will be a wrapper for step(...)
+## 3: Create prep.---- which will take care of the actual process.
+## An example will be added at some point if i remember. Otherwise see https://www.tidymodels.org/learn/develop/recipes/
 
