@@ -16,10 +16,12 @@ load_p('modeldata') # loaded by tidymodels
 load_p('dplyr')
 load_p('purrr')
 load_p('tidyr')
+load_p('themis')
 load_p('broom')
 load_p('ggplot2')
 load_p('ggthemes')
 load_p('patchwork')
+load_p('splines')
 ## Import the dataset
 data(ames, package = 'modeldata')
 ames <- ames %>% mutate(Sale_Price = log10(Sale_Price))
@@ -186,5 +188,58 @@ prep_ames %>%
 
 
 # 6.5: Skipping steps for new data
+
+## Sometimes we're interested in skipping steps. Especially when it comes to imputing or subsamping data.
+## For the test set we are not interested in the step being used upon the testing set
+## to avoid this one can set "skip = TRUE" for steps in the formula
+## Some steps such as "step_rose", "step_sample" do this by default.
+
+### Create example or 2 here.
+ames_train %>% mutate()
+
+View(ames_train)
+## Example with step_novel (add "high" as a level.) Does not skip on default
+ames_train %>% select(Land_Contour) %>% summary()
+
+ames_novel <- ames_train %>%
+  recipe(Sale_Price ~ Gr_Liv_Area + Land_Contour) %>%
+  step_log(Sale_Price, Gr_Liv_Area, base = 10) %>%
+  step_novel(Land_Contour, new_level = 'Under water') %>%
+  step_dummy(starts_with('Land_Contour')) %>%
+  prep()
+ames_test <- ames_split %>% assessment()
+### Note that step_novel is kept throughout. So Under.water is kept as a level.
+ames_novel %>% juice()
+ames_novel %>% bake(new_data = ames_test)
+
+## Example with... step_filter
+ames_filter <- ames_train %>%
+  recipe(Sale_Price ~ Gr_Liv_Area + Land_Contour) %>%
+  step_log(Sale_Price, Gr_Liv_Area, base = 10) %>%
+  step_filter(Land_Contour != 'Lvl') %>%
+  prep()
+### Note that Juice has no "Lvl" but bake returns the a tibble with observations in this field.
+ames_filter %>% juice() %>% summary()
+ames_filter %>% bake(new_data = ames_test) %>% summary()
+
+
+# 6.6: Other examples of recipe steps
+
+## Sometimes we
+plot_smoother <- function(deg_free){
+  ggplot(ames_train, aes(x = Latitude, y = Sale_Price)) +
+    geom_point(alpha = 0.1) +
+    scale_y_log10() +
+    geom_smooth(method = lm,
+                formula = y ~ ns(x, df=  deg_free),
+                col = '#850030', # I like this colour better
+                se = FALSE
+                ) +
+    ggtitle(paste(deg_free, 'Spline Terms'))
+}
+(plot_smoother(2) + plot_smoother(5)) /
+   (plot_smoother(20) + plot_smoother(100))
+ggsave(file.path(graphics_dir, 'smoother.png'))
+
 
 
