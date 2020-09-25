@@ -15,13 +15,8 @@ load_p('tidymodels')
 load_p('recipes')
 load_p('modeldata') # loaded by tidymodels
 load_p('dplyr')
-load_p('purrr')
-load_p('tidyr')
 load_p('themis')
 load_p('broom')
-load_p('ggplot2')
-load_p('ggthemes')
-load_p('patchwork')
 load_p('parsnip')
 load_p('ranger')
 
