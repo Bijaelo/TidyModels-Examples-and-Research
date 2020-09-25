@@ -10,6 +10,7 @@ load_p <- function(x, character.only = TRUE, ...){
     install.packages(x, ...)
   library(x, character.only = TRUE, ...)
 }
+load_p('textrecipes')
 load_p('tidymodels')
 load_p('recipes')
 load_p('modeldata') # loaded by tidymodels
@@ -324,3 +325,31 @@ identical(recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Typ
             prep() %>%
             juice()
 )
+
+
+
+
+#- Natural Language Processing
+## Need an example here
+## I have little experience.
+?textrecipes
+data(okc_text, package = 'modeldata')
+okc_rec <- recipe(~  essay0 + essay1, data = okc_text) %>%
+  step_tokenize(essay0, essay1) %>% # Tokenizes to words by default
+  # Remove useless words such as "in" "a" "an" and so forth
+  step_stopwords(essay0, essay1) %>% # Uses the english snowball list by default
+  # Limit to the 100 most frequent tokens
+  step_tokenfilter(essay0, essay1, max_tokens = 100) %>%
+  step_tfidf(essay0, essay1)
+
+
+# 6.7: How data are used by the recipe
+## There is not really any examples here.
+## Data is used depending on the step implemented and passed on for use in `prep`.
+## Eg a step may need some information at the step phase and stores this info, while the `prep` step will use this information, unaltered by other steps
+## Most steps however do "nothing" in the step phase and simply creates a specification (eg a recipe step) that should be performed by prep.
+## that is why "step_*"s are fast while "prep"  is slow.
+
+# 6.8
+
+
