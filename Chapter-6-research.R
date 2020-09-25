@@ -381,4 +381,22 @@ tidy(ames_lm_rec, number = 4)
 ## in order to remove errors due to changed order or added steps.
 
 # 6.10: Column roles
-##
+## recipe relies upon roles and column type to keep track of which columns to use and handle.
+## One important note is that sometimes it is useful to add new roles, either for further processing or for later analysis not related to the modelling
+## For example we might have an address which can be useful for visualization and comparison with other observations.
+## The variable is not useful as a variable, but may be useful for other purposes. Here I'll use "street" as a proxy for address
+ames_rec <- recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type +
+                          Latitude + Longitude + Street, data = ames_train) %>%
+  update_role(Street, new_role = 'street address') %>%
+  step_log(Sale_Price, Gr_Liv_Area, base = 10) %>%
+  step_other(Neighborhood, threshold = 0.01) %>%
+  step_dummy(all_nominal()) %>%
+  step_interact( ~ Gr_Liv_Area:starts_with("Bldg_Type_") ) %>%
+  step_ns(Latitude, Longitude, deg_free = 20) %>%
+  prep()
+## Roles can also be added at specific steps using the `role` argument, however only one role can be supplied.
+## Instead one can use `add_role` if a specific column should have multiple roles.
+## Most of the role system on a daily basis is useful for removing variables from certain steps that affect all predictors,
+## or for making certain steps have increased readability.
+
+
