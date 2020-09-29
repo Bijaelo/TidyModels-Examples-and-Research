@@ -128,6 +128,159 @@ p4 <- pr_curve(two_class_example, truth, Class1) %>%
   autoplot()
 (p1 + p2) / (p3 + p4) + plot_annotation(title = 'Different measures in yardstick (binary)') 
 
+# 9.4: Multi-class classification metrics
+## For multi-class problems we can continue to use the same methods as for 
+## binary classification
+data(hpc_cv, package = 'modeldata')
+tibble(hpc_cv)
+metrics(hpc_cv, obs, pred)
+
+hpc_ms <- metric_set(accuracy, kap, mcc)
+hpc_ms(hpc_cv, obs, estimate = pred)
+
+## Some metrics in binary search has approximations for the multi-class case.
+## Sensitivity for example has macro-weighted, macro- and micro-averaging
+## Macro averaging computes a set of one-versus-all metrics. 
+## Eg. For each class, assume this is the "positive". What is the true positive rate given this assumption?
+
+## macro weighted averaging is similar, but weights the estimate by the observation count
+## Micro averaging combines the result for each class into a single metric.
 
 
+#- Macro F1 and Macro F1, a note. (Juri Opitz & Sebastian Burst). Article reference.
+## As I've never heard about multiclass F1 and as the theory for the above is not completely clear
+## I've decided to go through the references and try to understand the theorems and proofs
+## I will make some very inconsistent notes on this and try to make my own calculations for this purpose, before continuing to read.
+## Here i use a lax and inconsistent latex notation
 
+## Introduction:
+##- Preliminaries (subsection)
+
+### In the article they state two metrics normally are used. They name them
+### Averaged F1 and F1 of averages
+
+### For any classifier f : D -> C = {1, ..., n} and finite set S contained within D \times X
+### let m^{f,S} in N_0^{n \times n} be a confusion matrix, where 
+### m_{i,j}^{n, S} = |{s in S | f(s_1) = i \wedge s_2 = j}| 
+### (where the element of a confusion matrix is given by the value of the classifier for subset s_1 given subset s_2 is j.)
+### Subscript omitted from here on
+### For any such matrix let P_i, R_i and F1_i denote precision, recall and F1-score with respect to class i:
+### P_i = m_ii / {\sum_{x = 1}^{n} m_{i,x}}
+### R_i = m_ii / {\sum_{x = 1}^{n} m_{x,i}} 
+### F1_i = H(P_i, R_i) = 2 P_i R_i / {P_i + R_i}
+### with P_i, R_i, F1_i = 0 when the denominator is zero. 
+### H is the harmonic mean, precision and recall are also known as positive predictive value and sensitivity
+
+##- (Averaged F1: arithmetic mean over harmonic means)
+### F1 scores are computed for each class and then averaged via arithmetic mean
+### f1 = 1 / {N} \sum_{x} F1_x = 1/{n} \sum_{x} 2 P_x R_x / {P_x + R_x}
+
+##- (F1 of averages: harmonic mean over arithmetic means)
+### The harmonic mean is computed over the arithmetic means of precision and recall
+
+### bF1 = H(\bar P, \bar R) = 2 \bar P \bar R / {\bar P + \bar R} 
+###     = 2 * (1 / n \sum_{x} P_{x}) (1 / n \sum_x R_x) / {1/n \sum_{x} P_{x} + 1/n \sum_{x} R_{x}}
+
+
+#### calculating the two from hpc_cv
+#### Lets see if I can get this right
+
+##### We'll start by calculating individual recall, sensitivity and F1 scores
+
+summaries <- hpc_cv %>%
+  group_by(obs) %>%
+  count(pred) %>%
+  summarize(pred = pred,
+            n = n,
+            recall = n / sum(n)) %>%
+  group_by(pred) %>%
+  summarize(obs = obs,
+            n = n, 
+            recall = recall,
+            sensitivity = n / sum(n)) %>%
+  mutate(F1 = 2 * recall * sensitivity / (recall + sensitivity)) %>%
+  filter(pred == obs) %>%
+  ungroup()
+
+
+##### Next we'll just follow the formulas
+summaries %>% 
+  summarize(f1 = mean(F1),
+            bF1 = 2 * mean(recall) * mean(sensitivity) / (mean(recall) + mean(sensitivity)))
+
+##### hmmm..... This did not match the result by tidyverse. 
+##### back to the drawing board. Probably my grouping is not good enough.
+
+##### Lets try just getting regular precision and sensitivity right first
+
+summary(hpc_cv)
+hpc_small <- hpc_cv %>% filter(obs %in% c('VF', 'F'), pred %in% c('VF', 'F'))
+
+hpc_small %>% 
+  group_by(obs, pred) %>% 
+  count() %>%
+  ungroup() %>%
+  group_by(obs) %>%
+  mutate(recall = n / sum(n)) %>%
+  ungroup() %>%
+  filter(pred == obs)
+
+recall(hpc_small %>% mutate(obs = droplevels(obs), pred = droplevels(pred)), 
+       truth = obs, estimate = pred, 
+       event_level = 'second')
+
+###### Well that one is good enough. Now lets get precision
+hpc_small %>% 
+  group_by(obs, pred) %>% 
+  count() %>%
+  ungroup() %>%
+  group_by(pred) %>%
+  mutate(sens = n / sum(n)) %>%
+  ungroup() %>%
+  filter(pred == obs)
+
+precision(hpc_small %>% mutate(obs = droplevels(obs), pred = droplevels(pred)), 
+       truth = obs, estimate = pred, 
+       event_level = 'second')
+
+##### Alright so that is correct... wtf did i do wrong above.
+##### Lets get f1 score correct
+
+mij <- hpc_small %>%
+  group_by(obs, pred) %>%
+  count(obs, pred) %>%
+  ungroup()
+
+P <- mij %>%
+  group_by(obs) %>%
+  mutate(rec = n / sum(n)) %>%
+  ungroup() %>%
+  filter(pred == obs)
+R <- mij %>%
+  group_by(pred) %>%
+  mutate(sens = n / sum(n)) %>%
+  ungroup() %>%
+  filter(pred == obs)
+F <- full_join(P, R, c('obs', 'pred')) %>%
+  mutate(F1 = 2 * rec * sens / (rec + sens) )
+F
+f_meas(hpc_small %>% mutate(obs = droplevels(obs), pred = droplevels(pred)), 
+          truth = obs, estimate = pred, 
+          event_level = 'first')
+
+##### Alright everything here seems up to snuff. Now lets do it for all groups.
+mij <- hpc_cv %>% 
+  count(pred, obs) %>% 
+  ungroup() 
+P <- mij %>%
+  group_by(obs) %>%
+  mutate(rec = n / sum(n)) %>%
+  ungroup() %>%
+  filter(pred == obs)
+R <- mij %>%
+  group_by(pred) %>%
+  mutate(sens = n / sum(n)) %>%
+  ungroup() %>%
+  filter(pred == obs)
+F <- full_join(P, R, c('obs', 'pred'))
+##### So we know these are correct
