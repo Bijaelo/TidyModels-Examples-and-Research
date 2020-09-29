@@ -274,8 +274,7 @@ full_join(P, R, c('obs', 'pred')) %>%
 
 ##### Alright everything here seems up to snuff. Now lets do it for all groups.
 mij <- hpc_cv %>% 
-  count(pred, obs) %>% 
-  ungroup() 
+  count(pred, obs) 
 P <- mij %>%
   group_by(obs) %>%
   mutate(rec = n / sum(n)) %>%
@@ -286,7 +285,7 @@ R <- mij %>%
   mutate(sens = n / sum(n)) %>%
   ungroup() %>%
   filter(pred == obs)
-F <- full_join(P, R, c('obs', 'pred'))
+F <- full_join(P, R, c('obs', 'pred', 'n'))
 ##### So we know these are correct
 ##### The next part is to take the arithmetic mean over harmonic means and the harmonic mean over arithmetic means
 F %>% 
@@ -299,6 +298,16 @@ f_meas(hpc_cv, truth = obs, estimate = pred, estimator = 'macro_weighted')
 f_meas(hpc_cv, truth = obs, estimate = pred, estimator = 'micro')
 
 ##### It seems macro_weighted is wrong on my end. I am not entirely sure why that is.
+##### It should be simple to replicate... in the function f_meas (if one searches down the call stack) 
+##### it just takes a weighted average... But I can't seem to get this one right..
+F %>% 
+  mutate(F1 = 2 / (1 / rec + 1 / sens)) %>% 
+  mutate(f1 = mean(F1)) %>% 
+  mutate(bF1 = 2 / ( 1 / mean(rec) + 1 / mean(sens))) %>% 
+  group_by(pred) %>% 
+  mutate(w = n / sum(n)) %>% 
+  ungroup() %>% 
+  mutate(bf1 = weighted.mean(F1, w))
 
 
 
