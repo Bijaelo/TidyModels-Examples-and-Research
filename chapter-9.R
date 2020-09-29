@@ -264,9 +264,13 @@ R <- mij %>%
 F <- full_join(P, R, c('obs', 'pred')) %>%
   mutate(F1 = 2 * rec * sens / (rec + sens) )
 F
+
 f_meas(hpc_small %>% mutate(obs = droplevels(obs), pred = droplevels(pred)), 
           truth = obs, estimate = pred, 
           event_level = 'first')
+
+full_join(P, R, c('obs', 'pred')) %>% 
+  mutate(F1 = 2 / ( rec^(-1) + sens^(-1)))
 
 ##### Alright everything here seems up to snuff. Now lets do it for all groups.
 mij <- hpc_cv %>% 
@@ -284,3 +288,21 @@ R <- mij %>%
   filter(pred == obs)
 F <- full_join(P, R, c('obs', 'pred'))
 ##### So we know these are correct
+##### The next part is to take the arithmetic mean over harmonic means and the harmonic mean over arithmetic means
+F %>% 
+  mutate(F1 = 2 / (1 / rec + 1 / sens)) %>% 
+  mutate(f1 = mean(F1)) %>% 
+  mutate(bF1 = 2 / ( 1 / mean(rec) + 1 / mean(sens)))
+
+f_meas(hpc_cv, truth = obs, estimate = pred, estimator = 'macro')
+f_meas(hpc_cv, truth = obs, estimate = pred, estimator = 'macro_weighted')
+f_meas(hpc_cv, truth = obs, estimate = pred, estimator = 'micro')
+
+##### It seems macro_weighted is wrong on my end. I am not entirely sure why that is.
+
+
+
+sensitivity(hpc_cv, obs, pred, estimator = "macro")
+sensitivity(hpc_cv, obs, pred, estimator = "macro_weighted")
+sensitivity(hpc_cv, obs, pred, estimator = "micro")
+
