@@ -309,9 +309,94 @@ F %>%
   ungroup() %>% 
   mutate(bf1 = weighted.mean(F1, w))
 
+##### But I can't seem to get the weighing correct. They have a complete example in the 9.4 chapter
+class_totals <- 
+  count(hpc_cv, obs, name = "totals") %>% 
+  mutate(class_wts = totals / sum(totals))
+class_totals
+cell_counts <- 
+  hpc_cv %>% 
+  group_by(obs, pred) %>% 
+  count() %>% 
+  ungroup()
+one_versus_all <- 
+  cell_counts %>% 
+  filter(obs == pred) %>% 
+  full_join(class_totals, by = "obs") %>% 
+  mutate(sens = n / totals)
+one_versus_all
+
+##### But this does not seem to be directly related to the estimate in the referenced article
+##### Likely the specific metric comes from one of the references in the f_meas documentation
+##### I should go through those at some point as well... Maybe I will.
 
 
-sensitivity(hpc_cv, obs, pred, estimator = "macro")
-sensitivity(hpc_cv, obs, pred, estimator = "macro_weighted")
-sensitivity(hpc_cv, obs, pred, estimator = "micro")
+##### Regardless, the authors of this current article suggest using macro-averaged and not their alternative (harmonic average over arithmetic means). 
+##### Likely the reason why my result doesnt match macro-weighed-averaged is that specific suggestion, meaning they are not identical.
+
+
+
+# (A unified View of Multi-Label Performance Measures) [article reference]
+#- Abstract
+## They introduce what they call "label-wise" and "instance-wise" margin classifications measures.
+## They come up with a new margin measure "LIMO" they propose using.
+
+#- Introduction
+## They claim that many measures have not been studies sufficiently for their consequences
+## in the paper they show that to optimize some of these measures (eg. gain the best hamming-loss) 
+## certain other measures will simultaneously be optimized while other measure will be gain optimum together as well
+## In addition they state that they come with a method for optimizing both "sides" (margins) simultaniously using LIMO.
+
+#- Preliminaries
+##- notation
+### Assume that x_i \in \real^{d\times 1} is a real value instance vector
+### y_i \in {0, 1} ^{l\times 1} is a label vector for x_i
+### m denotes the number of training samples
+### y_ij (i\in {1, ..., m} j\in{1, ..., l}) means the j'th label of the i'thinstance 
+### y_ij = 1 or 0 <=> y_ij is relevant or irrelevant
+### X in \real^{m\times d} is an instance matrix
+### Y\in {0, 1}^{m\times l} is a label matrix
+### H : \real^d -> {0, 1}^l is the multi label classifier, each classifier can be thought of as a model
+### Eg. H = {h_1, ... h_l} and h_j(x_i) denotes the prediction of {y_i}_j = y_ij (the class label or probability for label j for y_i ) 
+### F : \real^d -> \real^l  is a multi label predictor 
+### F(X) can be regarded as the confidence of relevance (whatever that means?)
+### F = {f_1, ..., f_l} -> f_j(x_i) is the predicted value of y_ij
+### as any other theory, H can usually be induced via some threshold of F
+### h_j(x_i) = [[f_j(x_i) > t(x_i)]] where t is some treshold function. 
+### (Eg. in binary the threshold is usually whether f_j(x_i) > 0.5, so t(x_i) = 0.5)
+### Y_i denotes the i'throw vector of Y, and Y_.j is the j'th column vector
+### Y_i.^+ (or Y_i.^-) denotes the index set of relevant (or irrelevan) labels of Y_i
+### Eg. Y_i.^+ = {j| y_ij = 1} and Y_i.^- = {j| y_ij = 0}
+### |Y_ i.^+|  is used to notate the number of relevant points in x_i
+
+
+##- Multi-label performance measures
+### 11 measures are considered. 
+### 3 of them are F-measure extensions
+### 3 of them are extensions of AUC
+### 5 of them are various measures of error and loss.
+### The authors note that there is some ill-defined measures 
+### for example coverage(F) = one-error(F) = 0 if F_ij = 1 \forall ij
+### Also some of the AUC measures will similarly be 1 in this case.
+
+#### Lets try to calculate all of these measures. 
+
+####- Hamming loss (Fraction of misclassified labels)
+##### ah.. that is nice and simple at least
+(hpc_cv %>% 
+  filter(obs != pred) %>% nrow) /
+  nrow(hpc_cv)
+
+####- Ranking loss
+##### Darn.. ehm..
+##### rloss(F) = 1 / M \sum_{i = 1}^m |S_rank^i| / {|Y_i.^+| * |Y_i.^-|}
+##### S_rank^i = {(u,v)| f_u(x_i) \leq f_v(x_i), (u,v) \in Y_i.^0 \times Y_i.^-}
+##### ... well.. lets do this. Note that this is meant to be done on predictions
+##### In this case our predicted probability is in the VF, F, M and L columns
+##### Split Y_i.^+ and Y_i.^- into difference calculations. 
+##### Do the same for S_rank^i
+
+
+
+
 
