@@ -396,6 +396,67 @@ one_versus_all
 ##### Split Y_i.^+ and Y_i.^- into difference calculations. 
 ##### Do the same for S_rank^i
 
+##### |Y_i.^+| and |Y_i.^-| is just the number of observations that are in class "i" and those not in class "i"
+##### S_rank^i is just a vector of indexes where indicating the positions in the confusion matrix, 
+##### where an observation of class "i" is given a lower probability than a class not of rank "i"
+##### So this should not be too bad. 
+rank_count <- hpc_cv %>% 
+  select(obs, VF, F, M, L) %>% 
+  mutate(id = seq(n())) %>%
+  pivot_longer(c('VF', 'F', 'M', 'L')) %>%
+  # Find the number value of match
+  group_by(id) %>%
+  mutate(truth = max(case_when(obs == name ~ value, 
+                           TRUE ~ 0))) %>%
+  ungroup() %>%
+  group_by(obs) %>%
+  summarize(count = sum(truth < value))
+ 
+product_count <- hpc_cv %>% 
+  group_by(obs) %>%
+  summarize(n = n()) %>%
+  mutate(total = nrow(hpc_cv))
+
+left_join(rank_count, product_count, by = 'obs') %>% 
+  mutate(rankL_i = count / (n * (total - n))) %>%
+  summarize(rankL = mean(rankL_i))
+##### this does seem.. oddly low.. But it seems to follow the definition.. 
+##### I would take this with a grain of salt, as it it literally saying the model is ranking almost perfectly.
+
+
+####- One-error
+##### Similar to hamming loss, but based on probabilistic measure rather than predicted value
+
+hpc_cv %>% 
+  select(obs, VF, F, M, L) %>% 
+  mutate(id = seq(n())) %>%
+  pivot_longer(c('VF', 'F', 'M', 'L')) %>%
+  # Find the number value of match
+  group_by(id) %>%
+  mutate(truth = max(case_when(obs == name ~ value, 
+                               TRUE ~ 0))) %>%
+  ungroup() %>%
+  filter(obs != name) %>%
+  mutate(get = truth < value) %>%
+  group_by(obs, id) %>%
+  summarize(any_wrong = any(get)) %>%
+  ungroup() %>%
+  summarize(one_error = mean(any_wrong))
+##### interesting that this is almost just 100 times greater than the rank loss estimated.
+
+
+####- Coverage
+##### I dont know... ehm
+##### It really seems like it is "just" how many labels are never guessed correctly divded by the number of labels
+##### but that would be ignoring the rank... I am not completely familiar with this the ranking notation in this.
+
+#### Maybe we'll just skip calculating each measure, 
+#### and come back when I've got more time for it.
+#### I've gotta remember more about my linear algebra for this stuff it seems.
+
+
+
+
 
 
 
