@@ -446,13 +446,27 @@ hpc_cv %>%
 
 
 ####- Coverage
-##### I dont know... ehm
-##### It really seems like it is "just" how many labels are never guessed correctly divded by the number of labels
-##### but that would be ignoring the rank... I am not completely familiar with this the ranking notation in this.
+##### Alright it took me an embarrasingly long time to realize what this function meant
+##### For our specific case, it is actually incridibly simple, as the problem is not multi-labelled.
+##### Only one label is predicted, being the one with the maximum argument.
+##### eg. we can calculate coverage as 
 
-#### Maybe we'll just skip calculating each measure, 
-#### and come back when I've got more time for it.
-#### I've gotta remember more about my linear algebra for this stuff it seems.
+hpc_cv %>% mutate(coverage = case_when(obs == pred ~ 0,
+                     TRUE ~ 3)) %>% 
+  summarize(mean(coverage))
+
+##### Note that this can be interpreted as the average number of extra 
+##### labeling needed to get the maximum label specified correctly. 
+##### Said in another way. If on average 0.8739544 of the labels marked as true
+##### were actually correct, our best prediction would always be correct
+
+##### For the more general case we'd have to rank the entire probability vector 
+##### and take the maximum of the rank of the correct results. 
+##### To me a more useful result to be able to compare models more generally would be
+##### dividing the above result by the number of classes (here 4), as we then have
+##### a result 
+
+## I think I've gotten it.
 
 
 
