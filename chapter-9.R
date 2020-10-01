@@ -21,6 +21,7 @@ load_p('ggplot2')
 load_p('patchwork')
 load_p('ggthemes')
 load_p('themis')
+load_p('wesanderson')
 
 ## Import dataset
 data('ames', package = 'modeldata')
@@ -421,7 +422,16 @@ left_join(rank_count, product_count, by = 'obs') %>%
   mutate(rankL_i = count / (n * (total - n))) %>%
   summarize(rankL = mean(rankL_i))
 ##### this does seem.. oddly low.. But it seems to follow the definition.. 
-##### I would take this with a grain of salt, as it it literally saying the model is ranking almost perfectly.
+##### After spenting some time with coverage I'm finally understanding where I've gone wrong
+##### |Y_i.^+| is the number of classes correctly specified for observation i
+##### and |S_rank^i| is the number of times a correctly specified class is given a 
+##### greater probability than an incorrectly specified observation. 
+##### For this to make sense in the general sense, we'll let the empty set |Y_i.^-| have a probability specified of 0
+##### Then we have |S_rank^i| = 1 for correctly specified observations and 0 for incorrectly specified.
+##### But the divisor will always be 0 anyway. It doesn't make perfect sense here.
+
+
+
 
 
 ####- One-error
@@ -466,12 +476,122 @@ hpc_cv %>% mutate(coverage = case_when(obs == pred ~ 0,
 ##### dividing the above result by the number of classes (here 4), as we then have
 ##### a result 
 
-## I think I've gotten it.
 
 
 
+####- average precision
+##### This one does not make sense as we have to rank correctly classified labels
+##### against each other for each class.
+
+####- Macro F1
+####- instance F1
+####- micro F1
+##### Identical to bF1 and f1 and an additional measure that's an "in betweenn" version.
 
 
+
+##### They suggest an algorithm for optimizing both instance and label wide margins
+##### I think it could be useful to try and implement this.. 
+
+####- Algorithm
+#' Optimization of the LIMO algorihm
+#' 
+#' @param X a row matrix specifying the weight for each 
+#' @param Y a factor, integer or character matrix specifying the labels of each row of X
+#' @param eta step
+#' @param lambda1 label wise trade-off parameter
+#' @param lambda2 instance wise trade-off parameter
+#' @param max_iter the maximum number of iterations. Defaults to 100 times the number of observations
+#' @param W initial weight matrix
+#' 
+#' @description  This stuff still needs a more time before it will be implemented.
+#'  Maybe I'll implement it properly in the future. Start by implementing the raw algorithm rather than being smart
+#'  Then start vectorizing the arguments or converting it to Rcpp.
+#'  This function is extremely simple to convert to Rcpp, but it does require sampling 
+#'  so it will not be as fast as it could be.
+limo <- compiler::cmpfun(function(X, Y, eta = 0.001, 
+                                  lambda1 = 1, lambda2 = 1, 
+                                  max_iter = min(nrow(x) * 100, 1e5), 
+                                  W = matrix(rnorm(ncol(X) * ncol(Y), sd = 1 / sqrt(ncol(X))), ncol = ncol(X))){
+  if(missing(X) || missing(Y))
+    stop('X or Y is missing and must be provided.')
+  if(!is.matrix(X) || !is.matrix(Y))
+    stop('X and Y must be matrices specifying explanatory variables and catagories assigned to observation i respective.')
+  if(nrow(X) != nrow(Y)) 
+    stop('X and Y does not have an equal number of observations.')
+  if(!all(c(0, 1) %in% Y))
+    stop('Y must be a binary matrix with only 0 and 1 as values.')
+  if(ncol(W) != (nx <- ncol(X)) || nrow(W) != (ny <- ncol(Y)))
+    stop('Wrong dimensions specified for W. Should have columns equal to X and rows equal to columns in Y.')
+  # Instantiate weight vectors for instances and labels
+  c_inst  <- rowSums(Y)
+  c_inst  <- c_inst * (ny - c_inst) 
+  c_inst  <- c_inst / sum(c_inst)
+  c_label <- colSums(Y)
+  c_label <- mean(c_label * (nx - c_label))
+  c_label <- c_label / sum(c_label)
+  # Sample x_i
+  x_i_index <- sample(seq_len(nx), max_iter, TRUE, c_inst)
+  x_i_t <- X[x_i_index, ]
+  # Sample y_i.^+ and y_i.^-
+  y_samp <- matrix(0L, ncol = 2, nrow = nx)
+  x_i_tab <- table(x_i_index)
+  nm <- as.numeric(names(x_i_tab))
+  for(i in seq_along(x_i_tab)){
+    i_indx <- match(nm[i], x_i_index)
+    y_ip <- which(ind <- Y[nm[i]] == 1)
+    y_in <- which(!ind)
+    y_samp[i_indx, 1] <- sample(y_ip, x_i_tab[i], TRUE)
+    y_samp[i_indx, 2] <- sample(y_in, x_i_tab[i], TRUE)
+  }
+  # Should rework the loop below to sample x_j simultaneous and only 
+  w_row_subset <- rep(seq_len(ny), each = 2)
+  for(t in seq_len(max_iter)){
+    # iterate instance wide margin
+    W_i <- W[w_row_subset, as.integer(y_samp)]
+    W_i <- sweep(W_i, 2, x_i_t[t, ], '*', FALSE)
+    W_i <- rowSums(W_i)
+    W
+    for(j in seq_len(ny)){
+      
+    }
+    # Iterate label wide margin
+    for(j in seq_len()){
+      
+    }
+    
+  }
+})
+
+
+
+#- Continuing from pre-line 150
+## Alright.. articles done. (That only took 3 days of work wups ^_^)
+## Luckily there's a simpler way of getting these results already implemented
+## Note that macro-weighted-average does not seem to match any of the once i've gone through yet, at least I cant quite seem to get that one to match any of them.
+
+
+sensitivity(hpc_cv, obs, pred, estimator = "macro")
+sensitivity(hpc_cv, obs, pred, estimator = "macro_weighted")
+sensitivity(hpc_cv, obs, pred, estimator = "micro")
+
+
+
+## The probability measures also exist such as generalized ROC
+roc_auc(hpc_cv, obs, VF, F, M, L)
+roc_auc(hpc_cv, obs, VF, F, M, L, estimator = "macro_weighted")
+
+
+## Note that since we have resampling we can compute these over each cross-fold
+hpc_cv %>% group_by(Resample ) %>% 
+  roc_auc(obs, VF, F, M, L, estimator = "macro_weighted")
+
+
+## And we may even plot these results quite simply
+hpc_cv %>% group_by(Resample) %>% 
+  roc_curve(obs, VF, F, M, L) %>% 
+  autoplot() +
+  theme_pander() 
 
 
 
