@@ -150,5 +150,100 @@ data_range <- function(x) {
 
 map_dfr(time_slices$splits, ~ assessment(.x) %>% data_range())
 
-
 # 10.3: Estimating performance
+## We can use rsample object to simply fit our models using fit_resample
+
+rf_wf %>% fit_resamples(ames_folds)
+## We can also use this interface with a model_spec using either a formula interface or 
+## by using a recipe interface
+
+spec <- rand_forest(trees = 1000) %>% 
+  set_engine('ranger') %>%
+  set_mode('regression')
+spec %>% fit_resamples(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type + Latitude + Longitude, 
+                      ames_folds)
+spec %>% fit_resamples(ames_rec, ames_folds)
+
+## The fit_resamples method has a "metrics" argument which can be used to specify which metrics to use
+## control can further be used to specify further parameters. 
+## The parameters are listed in ?control_resamples
+keep_pred <- control_resamples(save_pred = TRUE)
+
+set.seed(130)
+rf_res <- 
+  rf_wf %>% 
+  fit_resamples(resamples = ames_folds, 
+                metrics = metric_set(rsq, rmse), 
+                control = keep_pred)
+rf_res
+
+## Metrics can be collected using collect_metrics
+collect_metrics(rf_res)
+
+## Predictions can be collected using collect_predictions
+assess_res <- collect_predictions(rf_res)
+assess_res
+## For cross validation where observations are sampled with replacement 
+## summarize can be set to TRUE in collect_predictions. (Does nothing here)
+collect_predictions(rf_res, summarize = TRUE)
+
+assess_res %>% 
+  ggplot(aes(x = Sale_Price, y = .pred)) + 
+  geom_point(alpha = .15) +
+  geom_abline(col = "red") + 
+  coord_obs_pred() + 
+  ylab("Predicted") + 
+  theme_pander()
+
+## agai we see one observation that is over predicted
+over_predicted <- assess_res %>%
+  mutate(.resid = Sale_Price - .pred) %>%
+  arrange(desc(abs(.resid))) %>%
+  slice(1)
+over_predicted
+
+ames_train %>% 
+  slice(over_predicted$.row) %>% 
+  select(Gr_Liv_Area, Neighborhood, Year_Built, Bedroom_AbvGr, Full_Bath)
+
+set.seed(12)
+val_set <- validation_split(ames_train, prop = 3/4)
+
+val_res <- rf_wf %>% fit_resamples(resamples = val_set)
+val_res
+collect_metrics(val_res)
+
+# 10.4: Parallel Processing
+## The tidymodels universe can be parallerized using various "do*" packages
+## doMC can be used for forking
+## doParallel and doFuture can be used alternatively.
+
+load_p('future')
+load_p('doFuture')
+load_p('foreach')
+load_p('doMC')
+load_p('doParallel')
+
+nc <- parallel::detectCores()
+registerDoMC(cores = 2)
+rf_wf %>% 
+  fit_resamples(resamples = ames_folds, 
+                metrics = metric_set(rsq, rmse), 
+                control = keep_pred)
+registerDoSEQ()
+
+cl <- makeCluster(nc - 1)
+registerDoParallel(cl)
+rf_wf %>% 
+  fit_resamples(resamples = ames_folds, 
+                metrics = metric_set(rsq, rmse), 
+                control = keep_pred)
+stopCluster(cl)
+registerDoSEQ()
+
+registerDoFuture()
+rf_wf %>% 
+  fit_resamples(resamples = ames_folds, 
+                metrics = metric_set(rsq, rmse), 
+                control = keep_pred)
+registerDoSEQ()
