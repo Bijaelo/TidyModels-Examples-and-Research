@@ -6,12 +6,12 @@
 ## Load necessary packages
 
 load_p <- function(x, character.only = TRUE, ...){
-  if(!require(x, character.only = character.only, ...))
+  if(!require(x, character.only = character.only, ...)){
     install.packages(x, ...)
-  library(x, character.only = character.only, ...)
+    Recall(x = x, character.only = character.only, ...)
+  }
 }
 load_p('tidymodels')
-load_p('dplyr')
 load_p('purrr')
 load_p('tidyr')
 load_p('parsnip')
@@ -22,7 +22,7 @@ load_p('patchwork')
 load_p('ggthemes')
 load_p('themis')
 load_p('wesanderson')
-load_p('ranger')
+load_p('dplyr')
 
 ## Import dataset
 data('ames', package = 'modeldata')
@@ -86,7 +86,7 @@ estimate_perf <- function(model, dat) {
   reg_metrics <- metric_set(rmse, rsq)
   model %>% 
     predict(dat) %>% 
-    bind_cols(dat %>% select(Sale_Price)) %>% 
+    bind_cols(dat %>% dplyr::select(Sale_Price)) %>% 
     reg_metrics(Sale_Price, .pred) %>% 
     select(-.estimator) %>% 
     mutate(object = obj_name, data = data_name)
@@ -97,3 +97,58 @@ ames_train <- ames_train %>% mutate(Sale_Price = log10(Sale_Price))
 estimate_perf(rf_fit, ames_train)
 estimate_perf(lm_f, ames_train)
 
+ames_test_old <- ames_test
+ames_test <- mutate(ames_test, Sale_Price = log10(Sale_Price))
+estimate_perf(rf_fit, ames_test)
+
+
+# 10.2: Resampling methods
+set.seed(55)
+ames_folds <- vfold_cv(ames_train, v = 10)
+ames_folds
+library(pryr)
+object_size(ames_folds)
+## interesting.. There might be some problems with memory here.
+## The data is stored in .$splits[[i]]$data and splits is a list not environment.
+## So it would be interesting to see if data takes up v times the memory after usage.
+
+object_size(ames_folds$splits[[1]]$data)
+format(object.size(ames_folds$splits[[1]]$data), unit = 'KiB')
+## Oh they note this right after the split, and state R is smart enough.
+## I guess this is due to the promis that the data should be available, until it is altered.
+
+#- Repeated cross validation
+
+vfold_cv(ames_train, v = 10, repeats = 5)
+
+#- LOOCV
+loo_cv(ames_train)
+
+#- Monte carlo CV
+## Interesting, didn't know of this one, but basically the samples are taken at random.
+## So the assessment might contain multiple of the same data point
+mc_cv(ames_train, prop = 9/10, times = 20)
+
+#- Validation set
+## exactly the same as "initial split" but with a different class
+validation_split(ames_train)
+
+#- Bootstrapping
+## make splits with replacements. Any points not chosen in analysis will be used for assessment
+## This maens assessment can have 0 to k points
+bootstraps(ames_train, times = 5)
+
+#- Rolling forecasting origin resampling
+## Simply roll across the time series using blocks of data to predict equally or unequally sized blocks in the future.
+time_slices <- 
+  tibble(x = 1:365) %>% 
+  rolling_origin(initial = 6 * 30, assess = 30, skip = 29, cumulative = FALSE)
+
+data_range <- function(x) {
+  summarize(x, first = min(x), last = max(x))
+}
+
+map_dfr(time_slices$splits, ~ assessment(.x) %>% data_range())
+
+
+# 10.3: Estimating performance
