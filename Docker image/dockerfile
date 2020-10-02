@@ -6,5 +6,6 @@ RUN apt-get update -y \
       build-essential \
       cmake \
 	  libxml2-dev \
+	  libglpk-dev \ 
   & R -e 'install.packages(c("arrow", "data.table", "tidyverse", "dplyr", "tidyr", "purrr", "recipes", "workflows", "tidymodels", "rsample", "MASS", "tune", "parsnip", "yardstick", "ggplot2", "themis", "patchwork", "ggthemes"))'
 RUN R -e 'install.packages("lme4")'
