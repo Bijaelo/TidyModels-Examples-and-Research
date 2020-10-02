@@ -237,4 +237,5 @@ summary(rsq_diff, size = 0.02) %>%
 
 # The Bayesian New Statistics: Hypothesis testing, estimation meta-analysis and power analysis from a Bayesian Perspective
 # (article about ROPE intervals)
+## The article seeks to demonstrate the superiority of bayesian methods for hypothesis testing and confidence intervals
 
