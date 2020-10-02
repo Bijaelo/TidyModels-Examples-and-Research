@@ -247,3 +247,16 @@ rf_wf %>%
                 metrics = metric_set(rsq, rmse), 
                 control = keep_pred)
 registerDoSEQ()
+
+# 10.5: Saving the resampled objects
+## The authors note that the objects themselves are not returned by default
+## We can however create our own "extract" function to extract the parts we want.
+
+get_model <- function(x)
+  pull_workflow_fit(x) %>% tidy()
+keep_pred <- control_resamples(save_pred = TRUE, extract = get_model)
+rf_wf %>% 
+  fit_resamples(resamples = ames_folds, 
+                metrics = metric_set(rsq, rmse), 
+                control = keep_pred,
+                )
